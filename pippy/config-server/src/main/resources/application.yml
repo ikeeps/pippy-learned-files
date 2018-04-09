@@ -1,0 +1,20 @@
+server:
+  port: 8888
+  display-name: config
+  
+logging:
+  file: ${HOME:${HOMEPATH:${USER_HOME:/usr}}}/${server.display-name}-${server.port:8080}.log
+  
+management:
+  security:
+    enabled: false
+
+spring:
+  cloud:
+    config:
+      server:
+        git:
+          uri: "ssh://git@git-server.localnetwork/home/git/conf-server"
+          strictHostKeyChecking: false
+          basedir: target/config
+          searchPaths: '{application}'

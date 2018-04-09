@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  labels:
+    environment: dev
+    release: dev
+    tier: gateway
+  name: task-pv-local
+spec:
+  containers:
+    - name: task-pv
+      image: nginx:1.13.8-alpine
+      volumeMounts:
+        - name: task-pv-storage
+          mountPath: "/usr/share/nginx/html"
+      ports:
+        - name: "http-server"
+          containerPort: 80
+  volumes:
+    - name: task-pv-storage
+      persistentVolumeClaim: 
+        claimName: pv-local-claim
+

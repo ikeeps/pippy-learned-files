@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: auth
+  namespace: pippy
+  labels: 
+    app: pippy
+    environment: demo
+    role: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pippy
+      environment: demo
+      role: auth
+  template:
+    metadata:
+      name: auth
+      namespace: pippy
+      labels: 
+        app: pippy
+        environment: demo
+        role: auth
+    spec:
+      containers:
+        - name: auth
+          image: "ikeeps/pippy-auth:0.0.1"
+          env:
+            - name: 'spring.profiles.active'
+              value: 'production'
+          ports:
+            - name: web
+              containerPort: 7004
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 7004
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 7004
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+          
+    

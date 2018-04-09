@@ -1,0 +1,163 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sharda
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: sharda
+spec:
+  selector:
+    app: mongodb
+    environment: demo
+    role: sharda
+  clusterIP: None
+  ports:
+    - name: client
+      port: 27018
+      
+--- 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: sharda-config
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: sharda
+data:
+  sharda.cnf: |
+    sharding:
+      clusterRole: shardsvr
+    replication:
+      replSetName: sharda
+    net:
+      bindIp: 0.0.0.0
+  initiateRS.js: |
+    var cfg = {
+        "_id":"sharda"
+        ,"members":[
+            {"_id":0,"host":"sharda-0.sharda.mongodb.svc.cluster.local:27019"},
+            {"_id":1,"host":"sharda-1.sharda.mongodb.svc.cluster.local:27019"},
+            {"_id":2,"host":"sharda-2.sharda.mongodb.svc.cluster.local:27019"}
+        ]
+    };
+    var error = rs.initiate(cfg);
+    printjson(error);
+    
+--- 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    type: local
+    environment: demo
+  name: sharda
+spec:
+  storageClassName: mongodb
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/home/jfenghu/k8s/mnt/mongodb/sharda"
+--- 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    type: local
+    environment: demo
+  name: sharda-1
+spec:
+  storageClassName: mongodb
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/home/jfenghu/k8s/mnt/mongodb/sharda-1"
+--- 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    type: local
+    environment: demo
+  name: sharda-2
+spec:
+  storageClassName: mongodb
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/home/jfenghu/k8s/mnt/mongodb/sharda-2"
+--- 
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sharda
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: sharda
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+      role: sharda
+      environment: demo
+  replicas: 3
+  serviceName: sharda
+  template:
+    metadata:
+      name: sharda
+      labels:
+        app: mongodb
+        role: sharda
+        environment: demo
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: sharda-config
+      containers:
+        - name: mongodb
+          image: mongo:3.6
+          command:
+            - "mongod"
+            - "--config=/config/sharda.cnf"
+          ports:
+            - name: client
+              containerPort: 27018
+          livenessProbe:
+            exec:
+              command: ["mongo", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command: ["mongo", "--port", "27018", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: datadir
+              mountPath: /data/db
+              subPath: sharda
+  volumeClaimTemplates:
+    - metadata: 
+        name: datadir
+      spec:
+        accessModes: 
+          - ReadWriteOnce
+        storageClassName: mongodb
+        resources:
+          requests:
+            storage: 10Gi
+    

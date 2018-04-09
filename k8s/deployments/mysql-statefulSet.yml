@@ -1,0 +1,174 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mysql
+  namespace: mysql
+  labels:
+    app: mysql
+    environment: demo
+spec:
+  selector:
+    matchLabels:
+      app: mysql
+  replicas: 2
+  serviceName: "mysql"
+  template:
+    metadata:
+      name: mysql
+      labels:
+        app: mysql
+        environment: demo
+        tier: server
+    spec:
+      initContainers:
+        - name: init-mysql
+          image: mysql:5.7
+          volumeMounts:
+            - name: conf
+              mountPath: /mnt/conf.d
+            - name: config-map
+              mountPath: /mnt/config-map
+          command: 
+            - "bash"
+            - "-c"
+            - |
+              set -ex
+              # Generate mysql server-id from pod ordinal index.
+              [[ $(hostname) =~ -([0-9]+)$ ]] || exit 1
+              ordinal=${BASH_REMATCH[1]}
+              echo [mysqld] > /mnt/conf.d/server-id.cnf
+              # Add an offset to avoid reserved server-id=0 value.
+              echo server-id=$((100 + $ordinal)) >> /mnt/conf.d/server-id.cnf
+              if [[ $ordinal -eq 0 ]]; then
+                 cp /mnt/config-map/master.cnf /mnt/conf.d/
+              else
+                 cp /mnt/config-map/slave.cnf /mnt/conf.d/
+              fi
+        - name: clone-mysql
+          image: ist0ne/xtrabackup:1.0
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+              subPath: mysql
+            - name: conf
+              mountPath: /etc/mysql/conf.d
+          command:
+            - "bash"
+            - "-c"
+            - |
+              set -ex
+              [[ -d /var/lib/mysql/mysql ]] || exit 0
+              [[ $(hostname) =~ -([0-9]+)$ ]] || exit 1
+              ordinal=${BASH_REMATCH[1]}
+              [[ $ordinal -eq 0 ]] && exit 0
+              # Clone data from previous peer.
+              xtrabackup --user=replica --password=replica --host=mysql-$(($ordinal-1)).mysql --backup --target-dir=/var/lib/mysql
+              # Prepare the backup.
+              xtrabackup --prepare --target-dir=/var/lib/mysql
+      containers:
+        - name: mysql
+          image: mysql:5.7
+          env:
+            - name: "MYSQL_ALLOW_EMPTY_PASSWORD"
+              value: "1"
+          ports:
+            - name: mysql
+              containerPort: 3306
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+              subPath: mysql
+            - name: conf
+              mountPath: /etc/mysql/conf.d
+          livenessProbe:
+            exec:
+              command: ["mysqladmin", "ping"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+          readinessProbe:
+            exec:
+              command: ["mysql", "-h", "127.0.0.1", "-e", "select 1"]
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+         
+        - name: backup
+          image: ist0ne/xtrabackup:1.0
+          command:
+            - bash
+            - "-c"
+            - |
+              set -ex
+              until mysql -h 127.0.0.1 -e "select 1"; do sleep 3; done
+              # create a backup user and slave user on master
+              [[ $(hostname) =~ -([0-9]+)$ ]] || exit 1
+              ordinal=${BASH_REMATCH[1]}
+              if [[ $ordinal -eq 0 ]]; then
+                mysql -h 127.0.0.1 <<EOF
+                create user 'replica'@'%.mysql.svc.cluster.local' identified by 'replica'
+                grant RELOAD, LOCK TABLES, PROCESS, REPLICATION CLIENT, replication slave on *.* to 'replica'@'%.mysql.svc.cluster.local'
+              EOF
+              fi
+              
+              cd /var/lib/mysql
+          
+              # Determine binlog position of cloned data, if any.
+              if [[ -f xtrabackup_slave_info ]]; then
+                # XtraBackup already generated a partial "CHANGE MASTER TO" query
+                # because we're cloning from an existing slave.
+                mv xtrabackup_slave_info change_master_to.sql.in
+                # Ignore xtrabackup_binlog_info in this case (it's useless).
+                rm -f xtrabackup_binlog_info
+              elif [[ -f xtrabackup_binlog_info ]]; then
+                # We're cloning directly from master. Parse binlog position.
+                [[ `cat xtrabackup_binlog_info` =~ ^(.*?)[[:space:]]+(.*?)$ ]] || exit 1
+                rm xtrabackup_binlog_info
+                echo "CHANGE MASTER TO MASTER_LOG_FILE='${BASH_REMATCH[1]}',\
+                      MASTER_LOG_POS=${BASH_REMATCH[2]}" > change_master_to.sql.in
+              fi
+            
+              # Check if we need to complete a clone by starting replication.
+              if [[ -f change_master_to.sql.in ]]; then
+                                
+                echo "Initializing replication from clone position"
+                # In case of container restart, attempt this at-most-once.
+                mv change_master_to.sql.in change_master_to.sql.orig
+                mysql -h 127.0.0.1<<EOF
+              $(<change_master_to.sql.orig),
+                MASTER_HOST='mysql-0.mysql',
+                MASTER_USER='root',
+                MASTER_PASSWORD='',
+                MASTER_CONNECT_RETRY=10;
+              START SLAVE;
+              EOF
+              fi
+          
+          ports:
+            - name: backup
+              containerPort: 3307
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/mysql
+              subPath: mysql
+            - name: conf
+              mountPath: /etc/mysql/conf.d
+      volumes:
+        - name: conf
+          emptyDir: {}
+        - name: config-map
+          configMap:
+            name: mysql-config
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        storageClassName: mysql
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+          limits:
+            storage: 2Gi
+    

@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: account
+  namespace: pippy
+  labels:
+    app: pippy
+    environment: demo
+    role: account
+spec:
+  selector:
+    matchLabels:
+      app: pippy
+      environment: demo
+      role: account
+  replicas: 1
+  template:
+    metadata:
+      name: account
+      namespace: pippy
+      labels:
+        app: pippy
+        environment: demo
+        role: account
+    spec:
+      containers:
+        - name: account
+          image: "ikeeps/pippy-account:0.0.1"
+          env:
+            - name: 'spring.profiles.active'
+              value: 'production'
+          ports:
+            - name: web
+              containerPort: 7003
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 7003
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 7003
+            initialDelaySeconds: 60
+            timeoutSeconds: 5

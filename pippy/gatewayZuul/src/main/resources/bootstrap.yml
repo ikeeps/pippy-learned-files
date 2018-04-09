@@ -1,0 +1,18 @@
+---
+spring:
+  profiles: local
+config:
+  url: http://192.168.99.3:30888
+  log: http://192.168.99.3:30888/gateway/local/master/log.xml
+---
+spring:
+  application:
+    name: gateway
+  cloud:
+    config:
+      uri: ${config.url:http://config.spring.svc.cluster.local:8888}
+##log config is important, and remote may fail        
+#logging:
+#  config: ${config.log:http://config.spring.svc.cluster.local:8888/gateway/default/master/log.xml}  
+      
+    

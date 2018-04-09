@@ -1,0 +1,38 @@
+
+<html>
+<body>
+<h1>request example</h1>
+<script src="./js/lib/jquery.min.js"></script>
+<script>
+function requestOauthToken(username, password) {
+
+	var success = false;
+
+	$.ajax({
+		url: '/auth-service/oauth/token',
+		datatype: 'json',
+		type: 'post',
+		headers: {'Authorization': 'Basic YnJvd3Nlcjo='},
+		async: false,
+		data: {
+			scope: 'ui',
+			username: username,
+			password: password,
+			grant_type: 'password'
+		},
+		success: function (data) {
+			localStorage.setItem('token', data.access_token);
+			success = true;
+		},
+		error: function (err) {
+			//removeOauthTokenFromStorage();
+			console.log(err);
+		}
+	});
+
+	return success;
+}
+requestOauthToken("ikee", "123456")
+</script>
+</body>
+</html>

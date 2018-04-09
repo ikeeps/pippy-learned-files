@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: zipkin
+  namespace: spring
+  labels:
+    app: support
+    environment: demo
+    role: trace
+spec:
+  selector:
+    matchLabels:
+      app: support
+      environment: demo
+      role: trace
+  replicas: 1
+  template:
+    metadata:
+      name: zipkin
+      namespace: spring
+      labels:
+        app: support
+        environment: demo
+        role: trace
+    spec:
+      containers:
+        - name: zipkin
+          image: openzipkin/zipkin:2.7
+          ports:
+            - name: web
+              containerPort: 9411

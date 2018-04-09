@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: git-server
+  namespace: localnetwork
+  labels:
+    app: dataservice
+    environment: demo
+    role: git-server
+spec:
+  ports:
+    - name: ssh
+      port: 22
+      protocol: TCP
+  type: ExternalName
+  externalName: 192.168.99.3

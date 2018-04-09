@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: router
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: router
+spec:
+  selector:
+    app: mongodb
+    environment: demo
+    role: router
+  clusterIP: None
+  ports:
+    - name: client
+      port: 27017
+      
+--- 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: router-config
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: router
+data:
+  router.cnf: |
+    sharding:
+      configDB:  configsvr/configsvr-0.configsvr.mongodb.svc.cluster.local:27019,configsvr-1.configsvr.mongodb.svc.cluster.local:27019,configsvr-2.configsvr.mongodb.svc.cluster.local:27019
+    net:
+      bindIp: 0.0.0.0
+  addShard.js: |
+    sh.addShard( "shardb/shardb-0.shardb.mongodb.svc.cluster.local:27018")
+    sh.addShard( "sharda/sharda-0.sharda.mongodb.svc.cluster.local:27018")
+--- 
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: router
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: router
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+      role: router
+      environment: demo
+  replicas: 2
+  serviceName: router
+  template:
+    metadata:
+      name: router
+      labels:
+        app: mongodb
+        role: router
+        environment: demo
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: router-config
+      containers:
+        - name: mongodb
+          image: mongo:3.6
+          command:
+            - "mongos"
+            - "--config"
+            - "/config/router.cnf"
+          ports:
+            - name: client
+              containerPort: 27017
+          volumeMounts:
+            - name: config
+              mountPath: /config
+    

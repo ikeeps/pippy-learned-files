@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: config
+  namespace: spring
+  labels:
+    app: support
+    environment: demo
+    role: config
+spec:
+  selector:
+    app: support
+    environment: demo
+    role: config
+  type: NodePort
+  ports:
+    - name: web
+      port: 8888
+      nodePort: 30888
+---
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: config
+  namespace: spring
+  labels:
+    app: support
+    environment: demo
+    role: config
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: support
+      environment: demo
+      role: config
+  template:
+    metadata:
+      name: config
+      namespace: spring
+      labels:
+        app: support
+        environment: demo
+        role: config
+    spec:
+      containers:
+        - name: config
+          image: "ikeeps/pippy-conf:0.0.1"
+          env:
+            - name: 'spring.profiles.active'
+              value: 'production'
+          ports:
+            - name: web
+              containerPort: 8888
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 8888
+            initialDelaySeconds: 20
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 8888
+            initialDelaySeconds: 20
+            timeoutSeconds: 5

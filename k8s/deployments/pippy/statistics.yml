@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: statistics
+  namespace: pippy
+  labels:
+    app: pippy
+    name: statistics
+    environment: demo
+    role: statistics
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pippy
+      name: statistics
+      environment: demo
+      role: statistics
+  template:
+    metadata:
+      name: statistics
+      namespace: pippy
+      labels:
+        app: pippy
+        name: statistics
+        environment: demo
+        role: statistics
+    spec:
+      containers:
+        - name: statistics
+          image: 'ikeeps/pippy-statistics:0.0.1'
+          env:
+            - name: 'spring.profiles.active'
+              value: 'production'
+          ports:
+            - name: web
+              containerPort: 7002
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: web
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: web
+            initialDelaySeconds: 60
+            timeoutSeconds: 5

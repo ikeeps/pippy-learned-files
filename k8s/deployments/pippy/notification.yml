@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: ReplicaSet
+metadata:
+  name: notification
+  namespace: pippy
+  labels:
+    app: pippy
+    environment: demo
+    role: notification
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pippy
+      environment: demo
+      role: notification
+  template:
+    metadata:
+      name: notification
+      namespace: pippy
+      labels:
+        app: pippy
+        environment: demo
+        role: notification
+    spec:
+      containers:
+        - name: notification
+          image: 'ikeeps/pippy-notification:0.0.1'
+          env:
+            - name: 'spring.profiles.active'
+              value: 'production'
+          ports:
+            - name: web
+              containerPort: 7001
+          livenessProbe:
+            httpGet:
+              path: "/health"
+              port: 7001
+            initialDelaySeconds: 60
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: "/health"
+              port: 7001
+            initialDelaySeconds: 60
+            timeoutSeconds: 5

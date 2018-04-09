@@ -1,0 +1,81 @@
+buildscript {
+	ext {
+		springBootVersion = '1.5.10.RELEASE'
+	}
+	repositories {
+		mavenCentral()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+		classpath('se.transmode.gradle:gradle-docker:1.2')
+	}
+}
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'docker'
+
+group = 'com.ikeeps.pippy'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = 1.8
+
+repositories {
+	mavenCentral()
+}
+
+
+ext {
+	springCloudVersion = 'Edgware.SR2'
+	micrometerVersion = '1.0.3'
+}
+
+dependencies {
+	compile('org.springframework.boot:spring-boot-starter-actuator')
+	compile('org.springframework.boot:spring-boot-starter-amqp')
+	compile('org.springframework.boot:spring-boot-starter-data-mongodb')
+	compile('org.springframework.boot:spring-boot-starter-web')
+	compile('org.springframework.cloud:spring-cloud-starter-config')
+	compile('org.springframework.cloud:spring-cloud-starter-eureka')
+	compile('org.springframework.cloud:spring-cloud-starter-feign')
+	compile('org.springframework.cloud:spring-cloud-stream')
+	compile('org.springframework.cloud:spring-cloud-stream-binder-rabbit')
+	compile('org.springframework.cloud:spring-cloud-starter-hystrix')
+    compile('org.springframework.cloud:spring-cloud-netflix-hystrix-stream')
+    
+    compile('org.springframework.security.oauth:spring-security-oauth2')
+	compile('org.springframework.cloud:spring-cloud-starter-oauth2')
+	
+	compile('org.springframework.cloud:spring-cloud-starter-bus-amqp')
+	compile('org.springframework.cloud:spring-cloud-starter-sleuth')
+	compile('org.springframework.cloud:spring-cloud-starter-zipkin')
+	compile('net.logstash.logback:logstash-logback-encoder:5.0')
+	compile('ch.qos.logback:logback-access')
+	compile('org.codehaus.janino:janino')
+	
+	compile("io.micrometer:micrometer-spring-legacy:${micrometerVersion}")
+	compile("io.micrometer:micrometer-registry-prometheus:${micrometerVersion}")
+	
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}
+
+docker {
+	useApi = true
+	hostUrl = "http://192.168.99.3:2376"
+	baseImage = "openjdk:8u131-jdk-alpine"
+	maintainer = "Alexander Lukyanchikov <sqshq@sqshq.com>"
+}
+
+task('dockerImage', type: Docker, dependsOn: "bootRepackage") {
+	applicationName = "ikeeps/pippy-statistics"
+	addFile(jar.archivePath, "/app/statistics.jar")
+	workingDir "/app"
+	defaultCommand(["java", "-Xmx200m", "-jar", "statistics.jar"])
+	exposePort 7002
+} 

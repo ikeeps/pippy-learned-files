@@ -1,0 +1,67 @@
+buildscript {
+	ext {
+		springBootVersion = '1.5.10.RELEASE'
+	}
+	repositories {
+		mavenLocal()
+		jcenter()
+	}
+	dependencies {
+		classpath("org.springframework.boot:spring-boot-gradle-plugin:${springBootVersion}")
+		classpath('se.transmode.gradle:gradle-docker:1.2')
+	}
+}
+
+apply plugin: 'application'
+apply plugin: 'java'
+apply plugin: 'eclipse'
+apply plugin: 'org.springframework.boot'
+apply plugin: 'docker'
+
+group = 'com.ikee.pippy'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = 1.8
+
+repositories {
+	mavenCentral()
+}
+
+
+ext {
+	springCloudVersion = 'Edgware.SR2'
+	micrometerVersion = '1.0.3'
+}
+
+docker {
+	useApi = true
+	hostUrl = "http://192.168.99.3:2376"
+	baseImage = "openjdk:8u131-jdk-alpine"
+	maintainer = "Alexander Lukyanchikov <sqshq@sqshq.com>"
+}
+
+task dockerImage(type: Docker, dependsOn: 'bootRepackage') {
+	println project.name
+	applicationName = "PippyConfigServer"
+	addFile(jar.archivePath, "/app/config.jar")
+	addFile("${System.env.HOME}/.ssh/config", "/root/.ssh/")
+	addFile("${System.env.HOME}/.ssh/git-open", "/root/.ssh/")
+	workingDir "/app"
+	defaultCommand(["java", "-Xmx200m", "-jar", "config.jar"])
+	exposePort 8888
+}
+
+dependencies {
+	compile('org.springframework.boot:spring-boot-starter-actuator')
+	compile('org.springframework.cloud:spring-cloud-config-server')
+	
+	compile("io.micrometer:micrometer-spring-legacy:${micrometerVersion}")
+	compile("io.micrometer:micrometer-registry-prometheus:${micrometerVersion}")
+	
+	testCompile('org.springframework.boot:spring-boot-starter-test')
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.springframework.cloud:spring-cloud-dependencies:${springCloudVersion}"
+	}
+}

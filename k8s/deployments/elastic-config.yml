@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: elastic-conf
+  namespace: spring
+  labels:
+    app: support
+    environment: demo
+    role: logcenter
+data:
+  kibana.yml: |
+    server:
+      name: kibana-1
+      port: 5601
+      host: 0.0.0.0
+    elasticsearch:
+      url: http://localhost:9200
+  elasticsearch.yml: |
+    node:
+      name: ${HOSTNAME}
+    network:
+      host: 0.0.0.0
+  logstash.conf: |
+    input {
+        tcp {
+            codec => "json"
+            port => 9610
+        }
+     }
+    output {
+      elasticsearch { hosts => ["localhost:9200"] }
+    }

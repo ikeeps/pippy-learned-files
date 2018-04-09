@@ -1,0 +1,135 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongoex
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: db
+spec:
+  selector:
+    app: mongodb
+    environment: demo
+    role: db
+  type: NodePort
+  ports:
+    - name: mongod
+      port: 27017
+      nodePort: 30017
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongo
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: db
+spec:
+  selector:
+    app: mongodb
+    environment: demo
+    role: db
+  clusterIP: None
+  ports:
+    - name: mongod
+      port: 27017
+--- 
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mongo-config
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: db
+data:
+  configsvr.cnf: |
+    net:
+      bindIp: 0.0.0.0
+
+--- 
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    type: local
+    environment: demo
+  name: single
+spec:
+  storageClassName: mongodb
+  capacity:
+    storage: 10Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/home/jfenghu/k8s/mnt/mongodb/single"
+--- 
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongo
+  namespace: mongodb
+  labels:
+    app: mongodb
+    environment: demo
+    role: db
+spec:
+  selector:
+    matchLabels:
+      app: mongodb
+      environment: demo
+      role: db
+  replicas: 1
+  serviceName: mongo
+  template:
+    metadata:
+      name: mongo
+      labels:
+        app: mongodb
+        role: db
+        environment: demo
+    spec:
+      volumes:
+        - name: config
+          configMap:
+            name: mongo-config
+      containers:
+        - name: mongodb
+          image: mongo:3.6
+          command:
+            - "mongod"
+            - "--config=/config/configsvr.cnf"
+          ports:
+            - name: client
+              containerPort: 27017
+          livenessProbe:
+            exec:
+              command: ["mongo", "--port", "27017", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 10
+            timeoutSeconds: 2
+          readinessProbe:
+            exec:
+              command: ["mongo", "--port", "27017", "--eval", "db.adminCommand('ping')"]
+            initialDelaySeconds: 10
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: datadir
+              mountPath: /data/db
+              subPath: configsvr
+  volumeClaimTemplates:
+    - metadata: 
+        name: datadir
+      spec:
+        accessModes: 
+          - ReadWriteOnce
+        storageClassName: mongodb
+        resources:
+          requests:
+            storage: 10Gi
+    

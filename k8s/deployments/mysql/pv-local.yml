@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  labels:
+    type: local
+    environment: dev
+  name: mysql-0
+spec:
+  storageClassName: mysql
+  accessModes:
+    - ReadWriteOnce
+  capacity:
+    storage: 2Gi
+  hostPath:
+    path: "/home/jfenghu/k8s/mnt/mysql-0"
